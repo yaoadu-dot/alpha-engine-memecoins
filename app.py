@@ -5,13 +5,13 @@ import time
 from datetime import datetime
 
 # ==============================================================================
-# AEM 2.2 | Sentinel Discovery Engine (Chart-View Edition)
+# AEM 2.2 | Sentinel Discovery Engine (Chart-View Edition + Session Memory)
 # ==============================================================================
 st.set_page_config(page_title="AEM 2.2 | Sentinel", layout="wide")
 st.title("🛡️ AEM 2.2: Sentinel Discovery Engine")
 
 # ==============================================================================
-# 1. SIDEBAR
+# 1. SIDEBAR (Session Memory Enabled)
 # ==============================================================================
 with st.sidebar:
     st.header("🎛️ Sentinel Settings")
@@ -20,8 +20,9 @@ with st.sidebar:
     
     st.markdown("---")
     st.subheader("🔔 Telegram Alerts")
-    bot_token = st.text_input("Bot Token", type="password")
-    chat_id = st.text_input("Chat ID")
+    # 'key' parameters here keep these values alive during auto-refreshes
+    bot_token = st.text_input("Bot Token", type="password", key="bot_token")
+    chat_id = st.text_input("Chat ID", key="chat_id")
     
     st.markdown("---")
     min_liq = st.number_input("Min Liquidity ($)", value=5000)
