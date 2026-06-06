@@ -4,16 +4,16 @@ import requests
 import time
 
 # ==============================================================================
-# AEM 1.3 | Alpha Engine
+# AEM 1.4 | Alpha Engine
 # ==============================================================================
-st.set_page_config(page_title="AEM 1.3 | New Pool Scanner", layout="wide")
-st.title("🛡️ AEM 1.3: New Pool Scanner")
+st.set_page_config(page_title="AEM 1.4 | New Pool Scanner", layout="wide")
+st.title("🛡️ AEM 1.4: New Pool Scanner")
 
 # ==============================================================================
 # 1. SIDEBAR
 # ==============================================================================
 with st.sidebar:
-    st.header("🎛️ AEM 1.3 Settings")
+    st.header("🎛️ AEM 1.4 Settings")
     auto_refresh = st.checkbox("Enable Auto-Refresh", value=True)
     refresh_rate = st.slider("Refresh Rate (seconds)", 15, 60, 20)
     
@@ -29,11 +29,12 @@ with st.sidebar:
 # ==============================================================================
 # 2. CORE ENGINE
 # ==============================================================================
-@st.cache_data(ttl=10)
+@st.cache_data(ttl=15)
 def fetch_raydium_market_data():
-    url = "https://api-v3.raydium.io/pools/info/list?poolType=all&poolSortField=createdAt&sortType=desc&pageSize=50&page=1"
+    # Removed invalid 'poolSortField=createdAt' parameter. 
+    # Defaults to volume-based sorting, which is supported by the API.
+    url = "https://api-v3.raydium.io/pools/info/list?poolType=all&pageSize=100&page=1"
     
-    # Enhanced headers to bypass basic bot detection
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
         "Accept": "application/json",
@@ -45,7 +46,6 @@ def fetch_raydium_market_data():
         if r.status_code == 200:
             return r.json().get('data', {}).get('data', [])
         else:
-            # This will show you exactly why the API is failing
             return f"Error {r.status_code}: {r.text}"
     except Exception as e:
         return f"Connection Exception: {str(e)}"
@@ -68,7 +68,8 @@ def calculate_deltas(pools):
             "Pool ID": pid,
             "Liquidity": f"${liq:,.0f}",
             "Age (h)": round(age_hours, 1),
-            "Score": 0 # Placeholder for your scoring logic
+            "OpenTime": open_time, # Store for sorting
+            "Score": 0 
         })
     return nodes
 
@@ -79,13 +80,15 @@ data = fetch_raydium_market_data()
 
 if isinstance(data, str):
     st.error(f"API Access Error: {data}")
-    st.info("If you see '403 Forbidden', Raydium has blocked your IP. Try running this from a different network or waiting 30 minutes.")
 elif data:
     processed_nodes = calculate_deltas(data)
     df = pd.DataFrame(processed_nodes)
     
     if not df.empty:
-        st.dataframe(df, use_container_width=True)
+        # Sort locally by OpenTime descending (newest first)
+        df = df.sort_values(by="OpenTime", ascending=False)
+        st.dataframe(df.drop(columns=["OpenTime"]), use_container_width=True)
+        
         st.markdown("### 🎯 Newest Pools Found")
         for _, row in df.head(10).iterrows():
             st.success(f"**{row['Asset']}** | Age: {row['Age (h)']}h")
