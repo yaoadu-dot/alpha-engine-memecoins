@@ -5,16 +5,16 @@ import time
 from datetime import datetime
 
 # ==============================================================================
-# AEM 2.2 | Diagnostic Build
+# AEM 2.2 | Sentinel Discovery Engine (Stable)
 # ==============================================================================
-st.set_page_config(page_title="AEM 2.2 | Diagnostic", layout="wide")
-st.title("🛡️ AEM 2.2: Sentinel + Diagnostic")
+st.set_page_config(page_title="AEM 2.2 | Sentinel", layout="wide")
+st.title("🛡️ AEM 2.2: Sentinel Discovery Engine")
 
 # ==============================================================================
 # 1. SIDEBAR
 # ==============================================================================
 with st.sidebar:
-    st.header("🎛️ Settings & Alerts")
+    st.header("🎛️ Sentinel Settings")
     auto_refresh = st.checkbox("Enable Auto-Refresh", value=True)
     refresh_rate = st.slider("Refresh Rate (seconds)", 30, 120, 60)
     
@@ -22,18 +22,6 @@ with st.sidebar:
     st.subheader("🔔 Telegram Alerts")
     bot_token = st.text_input("Bot Token", type="password")
     chat_id = st.text_input("Chat ID")
-    
-    if st.button("🚨 Test Telegram Connection"):
-        # Manual Trigger for Test
-        st.write("Sending test message...")
-        test_url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-        test_params = {"chat_id": chat_id, "text": "✅ AEM 2.2: Connection Test Successful!", "parse_mode": "Markdown"}
-        test_res = requests.get(test_url, params=test_params)
-        
-        if test_res.status_code == 200:
-            st.success("✅ Test message sent! Check your Telegram.")
-        else:
-            st.error(f"❌ Connection Failed ({test_res.status_code}): {test_res.text}")
     
     st.markdown("---")
     min_liq = st.number_input("Min Liquidity ($)", value=5000)
@@ -44,25 +32,17 @@ with st.sidebar:
         st.rerun()
 
 # ==============================================================================
-# 2. LOGIC
+# 2. CORE LOGIC
 # ==============================================================================
 if "alerted_tokens" not in st.session_state:
     st.session_state["alerted_tokens"] = set()
 
 def send_telegram_alert(token_symbol, market_cap, momentum, address):
-    if not bot_token or not chat_id: 
-        return
-        
+    if not bot_token or not chat_id: return
     msg = f"🚀 *New Momentum Detected!*\n\n*Asset:* {token_symbol}\n*MCap:* {market_cap}\n*Momentum:* {momentum}x\n\n[DexScreener Link](https://dexscreener.com/solana/{address})"
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
     params = {"chat_id": chat_id, "text": msg, "parse_mode": "Markdown"}
-    
-    response = requests.get(url, params=params)
-    
-    if response.status_code == 200:
-        st.success(f"✅ Telegram alert sent for {token_symbol}!")
-    else:
-        st.error(f"❌ Telegram Error ({response.status_code}): {response.text}")
+    requests.get(url, params=params)
 
 def get_risk_flags(liq, vol, fdv):
     flags = []
@@ -104,7 +84,6 @@ if data:
             address = p.get('pairAddress')
             momentum = round((vol / liq) if liq > 0 else 0, 2)
             
-            # Auto-Alert if SAFE and new
             if address not in st.session_state["alerted_tokens"]:
                 risk_status = get_risk_flags(liq, vol, fdv)
                 if risk_status == "✅ SAFE":
