@@ -4,11 +4,33 @@ import requests
 import time
 
 # ==============================================================================
-# Page Layout
+# Page Layout Initialization - AEM 1.0
 # ==============================================================================
-st.set_page_config(page_title="Alpha Engine: Raydium", layout="wide")
-st.title("🛡️ Alpha Engine: Premium Momentum Scanner")
+st.set_page_config(page_title="AEM 1.0 | Alpha Engine", layout="wide")
+st.title("🛡️ AEM 1.0: Premium Momentum Scanner")
 
+# ==============================================================================
+# 1. SIDEBAR CONTROLS
+# ==============================================================================
+with st.sidebar:
+    st.header("🎛️ AEM 1.0 Controls")
+    
+    # Filtering parameters
+    min_score = st.slider("Min Confluence Score", -10, 10, 2)
+    max_score = st.slider("Max Confluence Score", -10, 10, 10)
+    
+    st.markdown("---")
+    
+    # Manual Refresh
+    if st.button("🔄 Manual Pulse"):
+        st.rerun()
+        
+    st.markdown("---")
+    st.caption("AEM 1.0 Engine | Raydium V3 Integration")
+
+# ==============================================================================
+# 2. STATE & CORE LOGIC
+# ==============================================================================
 if "snapshots" not in st.session_state: st.session_state["snapshots"] = {}
 
 @st.cache_data(ttl=5)
@@ -21,7 +43,7 @@ def fetch_raydium_market_data():
     except: return []
 
 def check_wallet_forensics(pid):
-    # Deterministic simulation of forensic check
+    # Simulated forensic check placeholder
     return sum(ord(c) for c in pid) % 7 == 0 
 
 def calculate_deltas(pools):
@@ -35,13 +57,9 @@ def calculate_deltas(pools):
         mcap = float(p.get('marketCap', p.get('fdv', price * 1_000_000_000)))
         
         if not pid or mcap <= 0: continue
-        
         if pid not in st.session_state["snapshots"]: st.session_state["snapshots"][pid] = []
         
-        # Add new snapshot
         st.session_state["snapshots"][pid].append((current_time, mcap, vol))
-        
-        # FIXED: Corrected the tuple unpacking and timestamp math
         st.session_state["snapshots"][pid] = [s for s in st.session_state["snapshots"][pid] if (current_time - s[0]) <= 120]
         
         history = st.session_state["snapshots"][pid]
@@ -66,15 +84,21 @@ def calculate_deltas(pools):
         })
     return nodes
 
-# Execution
+# ==============================================================================
+# 3. DISPLAY
+# ==============================================================================
 raw_pools = fetch_raydium_market_data()
 if raw_pools:
     processed_nodes = calculate_deltas(raw_pools)
     df = pd.DataFrame(processed_nodes)
-    st.dataframe(df, use_container_width=True)
+    
+    # Filter based on Sidebar
+    df_filtered = df[(df['Score'] >= min_score) & (df['Score'] <= max_score)]
+    
+    st.dataframe(df_filtered, use_container_width=True)
     
     st.markdown("### 🎯 Extreme Conviction IDs")
-    for _, row in df[df['Score'] >= 2].iterrows():
+    for _, row in df_filtered[df_filtered['Score'] >= 2].iterrows():
         st.success(f"**{row['Asset']}**")
         st.code(row['Pool ID'])
 else:
