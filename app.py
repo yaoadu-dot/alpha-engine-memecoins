@@ -5,7 +5,7 @@ import time
 from datetime import datetime
 
 # ==============================================================================
-# AEM 2.2 | Sentinel Discovery Engine (Stable)
+# AEM 2.2 | Sentinel Discovery Engine (Chart-View Edition)
 # ==============================================================================
 st.set_page_config(page_title="AEM 2.2 | Sentinel", layout="wide")
 st.title("🛡️ AEM 2.2: Sentinel Discovery Engine")
@@ -79,9 +79,6 @@ if data:
         pair_created = p.get('pairCreatedAt', 0)
         age_days = (current_time - pair_created) / (1000 * 3600 * 24)
         
-        # Get Token Mint Address for Jupiter Swap
-        mint = p.get('baseToken', {}).get('address')
-        
         if liq >= min_liq and vol >= min_vol and age_days <= max_age_days:
             symbol = p.get('baseToken', {}).get('symbol')
             address = p.get('pairAddress')
@@ -96,10 +93,11 @@ if data:
             
             processed_list.append({
                 "Asset": symbol,
-                "Risk": get_risk_flags(liq, vol, fdv),
-                "MCap": f"${fdv:,.0f}",
+                "Risk Status": get_risk_flags(liq, vol, fdv),
+                "Market Cap": f"${fdv:,.0f}",
+                "24h Vol": f"${vol:,.0f}",
                 "Momentum": momentum,
-                "Trade": f"https://jup.ag/swap/SOL-{mint}"
+                "DexScreener": f"https://dexscreener.com/solana/{address}"
             })
 
     df = pd.DataFrame(processed_list)
@@ -108,10 +106,10 @@ if data:
         st.dataframe(
             df.sort_values(by="Momentum", ascending=False),
             column_config={
-                "Trade": st.column_config.LinkColumn(
-                    "Entry Order",
-                    help="Click to open Jupiter Swap for this token",
-                    display_text="Open Jupiter"
+                "DexScreener": st.column_config.LinkColumn(
+                    "DexScreener",
+                    help="Click to view chart",
+                    display_text="View Chart"
                 )
             },
             use_container_width=True
