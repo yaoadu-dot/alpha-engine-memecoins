@@ -5,18 +5,23 @@ import time
 from datetime import datetime
 
 # ==============================================================================
-# AEM 2.1 | Sentinel Discovery Engine
+# AEM 2.2 | Sentinel Discovery Engine with Telegram Alerts
 # ==============================================================================
-st.set_page_config(page_title="AEM 2.1 | Sentinel", layout="wide")
-st.title("🛡️ AEM 2.1: Sentinel Memecoin Engine")
+st.set_page_config(page_title="AEM 2.2 | Sentinel", layout="wide")
+st.title("🛡️ AEM 2.2: Sentinel + Auto-Alert")
 
 # ==============================================================================
 # 1. SIDEBAR
 # ==============================================================================
 with st.sidebar:
-    st.header("🎛️ AEM 2.1 Sentinel Settings")
+    st.header("🎛️ Settings & Alerts")
     auto_refresh = st.checkbox("Enable Auto-Refresh", value=True)
     refresh_rate = st.slider("Refresh Rate (seconds)", 30, 120, 60)
+    
+    st.markdown("---")
+    st.subheader("🔔 Telegram Alerts")
+    bot_token = st.text_input("Bot Token", type="password")
+    chat_id = st.text_input("Chat ID")
     
     st.markdown("---")
     min_liq = st.number_input("Min Liquidity ($)", value=5000)
@@ -27,8 +32,17 @@ with st.sidebar:
         st.rerun()
 
 # ==============================================================================
-# 2. RISK LOGIC
+# 2. LOGIC
 # ==============================================================================
+if "alerted_tokens" not in st.session_state:
+    st.session_state["alerted_tokens"] = set()
+
+def send_telegram_alert(token_symbol, market_cap, momentum, address):
+    if not bot_token or not chat_id: return
+    msg = f"🚀 *New Momentum Detected!*\n\n*Asset:* {token_symbol}\n*MCap:* {market_cap}\n*Momentum:* {momentum}x\n\n[DexScreener Link](https://dexscreener.com/solana/{address})"
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage?chat_id={chat_id}&text={msg}&parse_mode=Markdown"
+    requests.get(url)
+
 def get_risk_flags(liq, vol, fdv):
     flags = []
     if liq < 5000: flags.append("⚠️ LOW LIQ")
@@ -36,9 +50,6 @@ def get_risk_flags(liq, vol, fdv):
     if fdv > 0 and vol > 0 and (fdv / vol) > 100: flags.append("⚠️ DEAD VOL")
     return ", ".join(flags) if flags else "✅ SAFE"
 
-# ==============================================================================
-# 3. ENGINE
-# ==============================================================================
 @st.cache_data(ttl=60)
 def fetch_dexscreener_data():
     url = "https://api.dexscreener.com/token-profiles/latest/v1"
@@ -49,6 +60,9 @@ def fetch_dexscreener_data():
         return requests.get(pairs_url, timeout=10).json().get('pairs', [])
     except: return []
 
+# ==============================================================================
+# 3. ENGINE
+# ==============================================================================
 data = fetch_dexscreener_data()
 
 if data:
@@ -65,18 +79,28 @@ if data:
         age_days = (current_time - pair_created) / (1000 * 3600 * 24)
         
         if liq >= min_liq and vol >= min_vol and age_days <= max_age_days:
+            symbol = p.get('baseToken', {}).get('symbol')
+            address = p.get('pairAddress')
+            momentum = round((vol / liq) if liq > 0 else 0, 2)
+            
+            # Auto-Alert if SAFE and new
+            if address not in st.session_state["alerted_tokens"]:
+                risk_status = get_risk_flags(liq, vol, fdv)
+                if risk_status == "✅ SAFE":
+                    send_telegram_alert(symbol, f"${fdv:,.0f}", momentum, address)
+                    st.session_state["alerted_tokens"].add(address)
+            
             processed_list.append({
-                "Asset": p.get('baseToken', {}).get('symbol'),
+                "Asset": symbol,
                 "Risk Status": get_risk_flags(liq, vol, fdv),
                 "Market Cap": f"${fdv:,.0f}",
                 "Liquidity": f"${liq:,.0f}",
                 "24h Vol": f"${vol:,.0f}",
-                "Momentum": round((vol / liq) if liq > 0 else 0, 2),
-                "Address": p.get('pairAddress')
+                "Momentum": momentum,
+                "Address": address
             })
 
     df = pd.DataFrame(processed_list)
-    
     if not df.empty:
         st.dataframe(df.sort_values(by="Momentum", ascending=False), use_container_width=True)
     else:
