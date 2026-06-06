@@ -79,11 +79,15 @@ if data:
         pair_created = p.get('pairCreatedAt', 0)
         age_days = (current_time - pair_created) / (1000 * 3600 * 24)
         
+        # Get Token Mint Address for Jupiter Swap
+        mint = p.get('baseToken', {}).get('address')
+        
         if liq >= min_liq and vol >= min_vol and age_days <= max_age_days:
             symbol = p.get('baseToken', {}).get('symbol')
             address = p.get('pairAddress')
             momentum = round((vol / liq) if liq > 0 else 0, 2)
             
+            # Auto-Alert if SAFE and new
             if address not in st.session_state["alerted_tokens"]:
                 risk_status = get_risk_flags(liq, vol, fdv)
                 if risk_status == "✅ SAFE":
@@ -92,17 +96,26 @@ if data:
             
             processed_list.append({
                 "Asset": symbol,
-                "Risk Status": get_risk_flags(liq, vol, fdv),
-                "Market Cap": f"${fdv:,.0f}",
-                "Liquidity": f"${liq:,.0f}",
-                "24h Vol": f"${vol:,.0f}",
+                "Risk": get_risk_flags(liq, vol, fdv),
+                "MCap": f"${fdv:,.0f}",
                 "Momentum": momentum,
-                "Address": address
+                "Trade": f"https://jup.ag/swap/SOL-{mint}"
             })
 
     df = pd.DataFrame(processed_list)
+    
     if not df.empty:
-        st.dataframe(df.sort_values(by="Momentum", ascending=False), use_container_width=True)
+        st.dataframe(
+            df.sort_values(by="Momentum", ascending=False),
+            column_config={
+                "Trade": st.column_config.LinkColumn(
+                    "Entry Order",
+                    help="Click to open Jupiter Swap for this token",
+                    display_text="Open Jupiter"
+                )
+            },
+            use_container_width=True
+        )
     else:
         st.warning("No tokens matched your filters.")
 else:
