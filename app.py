@@ -2,10 +2,10 @@ import streamlit as st
 import pandas as pd
 import requests
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 
 # ==============================================================================
-# AEM 2.0 | DexScreener Discovery Engine
+# AEM 2.0 | Discovery Engine [Updated: Market Cap Added]
 # ==============================================================================
 st.set_page_config(page_title="AEM 2.0 | Discovery", layout="wide")
 st.title("🛡️ AEM 2.0: Memecoin Discovery Engine")
@@ -31,15 +31,12 @@ with st.sidebar:
 # ==============================================================================
 @st.cache_data(ttl=60)
 def fetch_dexscreener_data():
-    # We fetch a broad set of trending tokens to ensure we catch new ones
-    # DexScreener doesn't have a public "get all" endpoint, so we use their latest profiles
     url = "https://api.dexscreener.com/token-profiles/latest/v1"
     try:
         response = requests.get(url, timeout=10)
         profiles = response.json()
         
-        # We then need to get the pairs for these tokens
-        # To keep it efficient, we limit to the first 50 results
+        # Limit to first 50 to ensure API stability
         token_addresses = [p['tokenAddress'] for p in profiles[:50]]
         pairs_url = f"https://api.dexscreener.com/latest/dex/tokens/{','.join(token_addresses)}"
         
@@ -58,24 +55,21 @@ if data:
     current_time = datetime.now().timestamp() * 1000 # ms
     
     for p in data:
-        # Filter for Solana only
         if p.get('chainId') != 'solana': continue
         
         liq = float(p.get('liquidity', {}).get('usd', 0))
         vol = float(p.get('volume', {}).get('h24', 0))
-        pair_created = p.get('pairCreatedAt', 0) # ms
+        market_cap = float(p.get('fdv', 0)) # Using Fully Diluted Valuation as Market Cap
+        pair_created = p.get('pairCreatedAt', 0)
         
-        # Age calculation in days
         age_days = (current_time - pair_created) / (1000 * 3600 * 24)
         
-        # Confluence Filters
         if liq >= min_liq and vol >= min_vol and age_days <= max_age_days:
-            # Score: High vol/liq ratio = good momentum
             momentum_score = (vol / liq) if liq > 0 else 0
             
             processed_list.append({
                 "Asset": p.get('baseToken', {}).get('symbol'),
-                "Price": p.get('priceNative'),
+                "Market Cap": f"${market_cap:,.0f}" if market_cap > 0 else "N/A",
                 "Liquidity": f"${liq:,.0f}",
                 "24h Vol": f"${vol:,.0f}",
                 "Age (d)": round(age_days, 1),
@@ -92,7 +86,7 @@ if data:
         
         st.markdown("### 🎯 High-Momentum Targets")
         for _, row in df.head(5).iterrows():
-            st.success(f"**{row['Asset']}** | Momentum: {row['Momentum']}x | Age: {row['Age (d)']}d")
+            st.success(f"**{row['Asset']}** | Market Cap: {row['Market Cap']} | Momentum: {row['Momentum']}x")
             st.code(row['Address'])
     else:
         st.warning("No tokens matched your filters. Try lowering Liquidity or Volume requirements.")
