@@ -83,13 +83,11 @@ if data:
             address = p.get('pairAddress')
             momentum = round((vol / liq) if liq > 0 else 0, 2)
             
-            # Auto-Alert if SAFE and new
-            if address not in st.session_state["alerted_tokens"]:
-                risk_status = get_risk_flags(liq, vol, fdv)
-                if risk_status == "✅ SAFE":
-                    send_telegram_alert(symbol, f"${fdv:,.0f}", momentum, address)
-                    st.session_state["alerted_tokens"].add(address)
-            
+# --- TEST MODE ---
+send_telegram_alert("TEST_ASSET", "$100,000", "99.99x", "TEST_ADDRESS")
+st.success("Test alert sent to Telegram!")
+# -----------------
+
             processed_list.append({
                 "Asset": symbol,
                 "Risk Status": get_risk_flags(liq, vol, fdv),
