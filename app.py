@@ -4,23 +4,23 @@ import requests
 import time
 
 # ==============================================================================
-# AEM 1.6 | Stable Discovery Engine
+# AEM 1.7 | Diagnostic Discovery Engine
 # ==============================================================================
-st.set_page_config(page_title="AEM 1.6 | Scanner", layout="wide")
-st.title("🛡️ AEM 1.6: Discovery Engine")
+st.set_page_config(page_title="AEM 1.7 | Diagnostic", layout="wide")
+st.title("🛡️ AEM 1.7: Diagnostic Scanner")
 
 # ==============================================================================
 # 1. SIDEBAR
 # ==============================================================================
 with st.sidebar:
-    st.header("🎛️ AEM 1.6 Settings")
+    st.header("🎛️ AEM 1.7 Settings")
+    show_raw = st.checkbox("Show Raw Data (Diagnostic Mode)", value=False)
     auto_refresh = st.checkbox("Enable Auto-Refresh", value=True)
     refresh_rate = st.slider("Refresh Rate (seconds)", 30, 120, 60)
     
     st.markdown("---")
-    # Default to 672 hours (28 days) as requested
     max_age = st.slider("Max Age (Hours)", 1, 672, 672) 
-    min_liq = st.number_input("Min Liquidity ($)", value=100)
+    min_liq = st.number_input("Min Liquidity ($)", value=0) # Set to 0 to see everything
     
     if st.button("🔄 Manual Pulse"):
         st.rerun()
@@ -28,67 +28,56 @@ with st.sidebar:
 # ==============================================================================
 # 2. CORE ENGINE
 # ==============================================================================
-@st.cache_data(ttl=60) # Increased TTL to avoid rate limiting
+@st.cache_data(ttl=60)
 def fetch_raydium_market_data():
-    # Fetching 1000 pools sorted by liquidity to maximize chances of finding new ones
     url = "https://api-v3.raydium.io/pools/info/list?poolType=all&poolSortField=liquidity&sortType=desc&pageSize=1000&page=1"
-    
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-        "Accept": "application/json",
-        "Referer": "https://raydium.io/"
-    }
-    
+    headers = {"User-Agent": "Mozilla/5.0"}
     try:
         r = requests.get(url, headers=headers, timeout=15)
-        if r.status_code == 200:
-            return r.json().get('data', {}).get('data', [])
-        else:
-            return f"Error {r.status_code}"
-    except Exception as e:
-        return str(e)
+        return r.json().get('data', {}).get('data', []) if r.status_code == 200 else []
+    except: return []
 
 # ==============================================================================
 # 3. DISPLAY
 # ==============================================================================
 data = fetch_raydium_market_data()
 
-if isinstance(data, str):
-    st.error(f"API Connection Error: {data}")
-elif data:
-    # Process local filtering
+if show_raw and data:
+    st.subheader("🔍 Diagnostic: Raw API Data (First 3 entries)")
+    st.json(data[:3])
+
+if data:
     current_time = time.time()
     processed_list = []
     
     for p in data:
         liq = float(p.get('liquidity', 0))
+        # API often returns 0 for openTime if not strictly defined in that endpoint
         open_time = float(p.get('openTime', 0))
-        age_hours = (current_time - open_time) / 3600
         
+        # Calculate age, handling the case where open_time is 0
+        age_hours = (current_time - open_time) / 3600 if open_time > 0 else 9999
+        
+        # Only add to list if it meets basic criteria
         if age_hours <= max_age and liq >= min_liq:
             processed_list.append({
                 "Asset": p.get('mintA', {}).get('symbol', 'UNKNOWN'),
                 "Pool ID": p.get('id'),
                 "Liquidity": f"${liq:,.0f}",
-                "Age (h)": round(age_hours, 1),
-                "OpenTime": open_time
+                "Age (h)": round(age_hours, 1) if age_hours < 9000 else "N/A",
+                "RawOpenTime": open_time
             })
     
     df = pd.DataFrame(processed_list)
     
     if not df.empty:
-        df = df.sort_values(by="OpenTime", ascending=False)
-        st.write(f"Showing {len(df)} pools (Total fetched: {len(data)})")
-        st.dataframe(df.drop(columns=["OpenTime"]), use_container_width=True)
-        
-        st.markdown("### 🎯 Newest Pools (by Age)")
-        for _, row in df.head(10).iterrows():
-            st.success(f"**{row['Asset']}** | Age: {row['Age (h)']}h")
-            st.code(row['Pool ID'])
+        st.success(f"Successfully fetched and filtered {len(df)} pools.")
+        st.dataframe(df, use_container_width=True)
     else:
-        st.warning(f"No pools found with these parameters. (Fetched {len(data)} pools from API)")
+        st.warning("No pools met your current filter settings.")
+        st.info("Tip: Try setting 'Min Liquidity' to 0 and 'Max Age' to 672 to see if anything appears.")
 else:
-    st.warning("API returned no data.")
+    st.error("API returned no data.")
 
 if auto_refresh:
     time.sleep(refresh_rate)
