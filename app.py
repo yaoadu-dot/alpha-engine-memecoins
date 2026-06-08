@@ -11,7 +11,7 @@ st.set_page_config(page_title="AEM 2.2 | Sentinel", layout="wide")
 st.title("🛡️ AEM 2.2: Sentinel Discovery Engine")
 
 # ==============================================================================
-# 1. SIDEBAR (Session Memory Enabled)
+# 1. SIDEBAR (Updated for Secrets)
 # ==============================================================================
 with st.sidebar:
     st.header("🎛️ Sentinel Settings")
@@ -20,9 +20,11 @@ with st.sidebar:
     
     st.markdown("---")
     st.subheader("🔔 Telegram Alerts")
-    # 'key' parameters here keep these values alive during auto-refreshes
-    bot_token = st.text_input("Bot Token", type="password", key="bot_token")
-    chat_id = st.text_input("Chat ID", key="chat_id")
+    st.info("Credentials loaded from secrets.toml") # Confirms it's working
+    
+    # Automatically pull from secrets
+    bot_token = st.secrets.get("bot_token")
+    chat_id = st.secrets.get("chat_id")
     
     st.markdown("---")
     min_liq = st.number_input("Min Liquidity ($)", value=5000)
