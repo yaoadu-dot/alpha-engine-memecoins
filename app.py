@@ -25,6 +25,8 @@ with st.sidebar:
     # Automatically pull from secrets
     bot_token = st.secrets.get("bot_token")
     chat_id = st.secrets.get("chat_id")
+    webhook_secret = st.secrets.get("WEBHOOK_SECRET")
+    bot_url = st.secrets.get("BOT_URL")
     
     st.markdown("---")
     min_liq = st.number_input("Min Liquidity ($)", value=5000)
@@ -46,6 +48,22 @@ def send_telegram_alert(token_symbol, market_cap, momentum, address):
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
     params = {"chat_id": chat_id, "text": msg, "parse_mode": "Markdown"}
     requests.get(url, params=params)
+
+def send_bot_alert(address):
+    if not bot_url or not webhook_secret: return
+    webhook_url = f"{bot_url}/api/v1/aem-alert"
+    headers = {
+        "X-Webhook-Secret": webhook_secret,
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "mint_address": address, 
+        "alert_type": "BUY"
+    }
+    try:
+        requests.post(webhook_url, json=payload, headers=headers, timeout=5)
+    except Exception as e:
+        pass # Silently fail if bot is unreachable so it doesn't break Streamlit
 
 def get_risk_flags(liq, vol, fdv):
     flags = []
@@ -92,6 +110,7 @@ if data:
                 risk_status = get_risk_flags(liq, vol, fdv)
                 if risk_status == "✅ SAFE":
                     send_telegram_alert(symbol, f"${fdv:,.0f}", momentum, address)
+                    send_bot_alert(address)
                     st.session_state["alerted_tokens"].add(address)
             
             processed_list.append({
